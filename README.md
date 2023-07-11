@@ -20,7 +20,7 @@ implementation fileTree(dir: 'libs', include: ['*.jar', '*.aar'])
 ```kotlin
 FileDownloader.init(this, DownloadConfig())
 
-// DownloadConfig可配置请求头和日志答应
+// DownloadConfig可配置请求头和日志打印
 setLogger { Log.d("FileDownloader", it) }
 setHeaderProvider {
     mapOf<String, String>("token" to "hello world!")
