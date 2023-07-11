@@ -5,6 +5,7 @@ import androidx.annotation.NonNull;
 import com.zrh.downloader.DownloadCallback;
 
 import java.io.File;
+import java.util.Map;
 
 import kotlin.jvm.Volatile;
 
@@ -18,11 +19,13 @@ public class Request {
     private final DownloadCallback callback;
     @Volatile
     private boolean isCanceled = false;
+    private Map<String, String> headers;
 
-    public Request(String url, File output, DownloadCallback callback) {
+    public Request(String url, File output, Map<String, String> headers, DownloadCallback callback) {
         this.url = url;
         this.output = output;
         this.callback = callback;
+        this.headers = headers;
     }
 
     @NonNull
@@ -46,5 +49,9 @@ public class Request {
 
     public boolean isCanceled() {
         return isCanceled;
+    }
+
+    public Map<String, String> getHeaders() {
+        return headers;
     }
 }

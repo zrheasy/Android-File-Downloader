@@ -3,10 +3,12 @@ package com.zrh.downloader.task;
 import androidx.annotation.NonNull;
 
 import com.zrh.downloader.DownloadCallback;
+import com.zrh.downloader.HeaderProvider;
 import com.zrh.downloader.engine.DownloadEngine;
 import com.zrh.downloader.engine.Request;
 
 import java.io.File;
+import java.util.Map;
 
 /**
  * @author zrh
@@ -17,17 +19,25 @@ public class SourceDownloadTask extends StateTask implements DownloadCallback {
     private final String url;
     private final File outputDir;
     private final String fileName;
+    private Request request;
+    private final HeaderProvider provider;
 
-    public SourceDownloadTask(DownloadEngine engine, String url, File outputDir, String fileName) {
+    public SourceDownloadTask(DownloadEngine engine,
+                              String url,
+                              File outputDir,
+                              String fileName,
+                              HeaderProvider provider) {
         this.mEngine = engine;
         this.url = url;
         this.outputDir = outputDir;
         this.fileName = fileName;
+        this.provider = provider;
     }
 
     @Override
     public void stop() {
         clearCallbacks();
+        if (request != null) request.cancel();
     }
 
     @Override
@@ -35,7 +45,9 @@ public class SourceDownloadTask extends StateTask implements DownloadCallback {
         if (isRunning()) return;
         setRunning();
         String tempName = fileName + ".temp";
-        mEngine.execute(new Request(url, new File(outputDir, tempName), this));
+        Map<String, String> headers = provider.getHeaders(url);
+        request = new Request(url, new File(outputDir, tempName), headers, this);
+        mEngine.execute(request);
     }
 
     @Override

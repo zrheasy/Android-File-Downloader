@@ -13,6 +13,7 @@ import com.zrh.downloader.task.SourceDownloadTask;
 import com.zrh.downloader.utils.MD5Utils;
 
 import java.io.File;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -29,24 +30,35 @@ public class FileDownloader {
     private static final String cacheName = "download";
     private static final Map<String, Task> runningTasks = new ConcurrentHashMap<>();
     private static final ExecutorService copyExecutor = Executors.newCachedThreadPool();
-    private static DownloadEngine downloadEngine = new URLDownloadEngine();
     private static File sourceDir;
+    private static DownloadEngine downloadEngine;
+    private static HeaderProvider headerProvider;
 
-    public static void init(Context context) {
+    public static void init(Context context, DownloadConfig config) {
         File externalCacheDir = context.getExternalCacheDir();
         File cache = externalCacheDir != null ? externalCacheDir : context.getCacheDir();
         sourceDir = new File(cache, cacheName);
         if (!sourceDir.exists()) {
             sourceDir.mkdirs();
         }
+
+        if (config.getDownloadEngine() != null) {
+            downloadEngine = config.getDownloadEngine();
+        } else {
+            URLDownloadEngine engine = new URLDownloadEngine();
+            engine.setLogger(config.getLogger());
+            downloadEngine = engine;
+        }
+
+        if (config.getHeaderProvider() != null) {
+            headerProvider = config.getHeaderProvider();
+        } else {
+            headerProvider = new DefaultHeaderProvider();
+        }
     }
 
-    public static File getSourceDir(){
+    public static File getSourceDir() {
         return sourceDir;
-    }
-
-    public static void setDownloadEngine(DownloadEngine downloadEngine) {
-        FileDownloader.downloadEngine = downloadEngine;
     }
 
     public static DownloadHandle download(String url, File outputDir, String fileName, boolean useCache) {
@@ -77,7 +89,7 @@ public class FileDownloader {
 
         Task sourceDownloadTask = runningTasks.get(key);
         if (sourceDownloadTask == null) {
-            sourceDownloadTask = new SourceDownloadTask(downloadEngine, url, sourceDir, key);
+            sourceDownloadTask = new SourceDownloadTask(downloadEngine, url, sourceDir, key, headerProvider);
             sourceDownloadTask.addCallback(new RemoveTaskCallback(key));
             runningTasks.put(key, sourceDownloadTask);
 
@@ -108,6 +120,15 @@ public class FileDownloader {
         @Override
         public void onProgress(float percent) {
 
+        }
+    }
+
+    private static class DefaultHeaderProvider implements HeaderProvider {
+        private Map<String, String> empty = new HashMap<>();
+
+        @Override
+        public Map<String, String> getHeaders(String url) {
+            return empty;
         }
     }
 }

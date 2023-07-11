@@ -1,7 +1,10 @@
 package com.zrh.downloader.engine;
 
+import android.annotation.SuppressLint;
+
 import com.zrh.downloader.DownloadCallback;
 import com.zrh.downloader.ErrorCode;
+import com.zrh.downloader.Logger;
 import com.zrh.downloader.utils.FileUtils;
 
 import java.io.Closeable;
@@ -12,6 +15,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -26,6 +30,7 @@ public class URLDownloadEngine implements DownloadEngine {
     private static final int connectTimeout = 24 * 1000;
     private static final int readTimeout = 24 * 1000;
     private final ExecutorService executor;
+    private Logger logger;
 
     public URLDownloadEngine() {
         int coreSize = Runtime.getRuntime().availableProcessors();
@@ -37,15 +42,24 @@ public class URLDownloadEngine implements DownloadEngine {
         this.executor = executor;
     }
 
+    public void setLogger(Logger logger) {
+        this.logger = logger;
+    }
+
+    private void log(String msg) {
+        if (logger != null) logger.log(msg);
+    }
+
     @Override
     public void execute(Request request) {
         executor.submit(new DownloadTask(request));
     }
 
-    private static class DownloadTask implements Runnable {
+    private class DownloadTask implements Runnable {
         private final Request request;
         private String requestUrl;
         private int redirectTimes = 0;
+        private long startAt;
 
         public DownloadTask(Request request) {
             this.request = request;
@@ -60,11 +74,22 @@ public class URLDownloadEngine implements DownloadEngine {
         public void run() {
             if (isCanceled()) return;
             try {
+                startAt = System.currentTimeMillis();
                 URL url = new URL(requestUrl);
                 HttpURLConnection connection = (HttpURLConnection) url.openConnection();
                 connection.setConnectTimeout(connectTimeout);
                 connection.setReadTimeout(readTimeout);
                 connection.addRequestProperty("User-Agent", "FileDownloader");
+                Map<String, String> headers = request.getHeaders();
+                for (String key : headers.keySet()) {
+                    connection.addRequestProperty(key, headers.get(key));
+                }
+                if (requestUrl.equals(request.getUrl())) {
+                    log("Start >> " + requestUrl);
+                    log("Headers = " + headers);
+                } else {
+                    log("Redirect >> " + requestUrl);
+                }
                 connection.connect();
 
                 int code = connection.getResponseCode();
@@ -150,11 +175,16 @@ public class URLDownloadEngine implements DownloadEngine {
         }
 
         private void onError(int code, String msg) {
+            log("Error: " + code + " " + msg);
+            log("End << " + request.getUrl());
             DownloadCallback callback = request.getCallback();
             callback.onError(code, msg);
         }
 
+        @SuppressLint("DefaultLocale")
         private void onComplete(File file) {
+            long cost = System.currentTimeMillis() - startAt;
+            log(String.format("End(%dms) << ", cost) + request.getUrl());
             DownloadCallback callback = request.getCallback();
             callback.onCompleted(file);
         }
